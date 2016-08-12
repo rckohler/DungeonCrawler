@@ -34,6 +34,16 @@ class PhysicalObject(pygame.sprite.Sprite):
         else:
             self.rect.x = self.destinationX
             self.rect.y = self.destinationY
+    def setVelocitiesToFedPoint(self,x,y):
+        dx = self.destinationX-self.rect.x
+        dy = self.destinationY-self.rect.y
+        d = math.pow(dx*dx+dy*dy,.5)
+        if d > self.maxSpeed:
+            self.vx = dx/d * self.maxSpeed
+            self.vy = dy/d * self.maxSpeed
+        else:
+            self.rect.x = self.destinationX
+            self.rect.y = self.destinationY
     def moveByVelocities(self):
         dx = self.destinationX-self.rect.x
         dy = self.destinationY-self.rect.y
@@ -48,15 +58,40 @@ class PhysicalObject(pygame.sprite.Sprite):
         self.rect.x+= dx
         self.rect.y+= dy
 
-    def checkForCollision(self,others):
-        for object in others:
-            if object.rect.colliderect(self.rect): #collision detected
-                # decide if x collided or y collided
-                self.vx*=-1
-    def update(self):
+    def getPotentialCollisions(self, nearOthers):
+        newRect = self.rect
+        newRect.x += self.vx
+        newRect.y += self.vy
+        potentialCollisions = []
+        for other in nearOthers:
+            if other.rect.colliderect(newRect):
+                potentialCollisions.append(other)
+        return potentialCollisions
+    def findValidPath(self,nearOthers):
+        potentialCollisions = self.getPotentialCollisions(nearOthers)
+        pathFound = False
+        newRect = self.rect
+        if potentialCollisions == 0:
+            pathFound = True
+        radius = 10
+        d = 1.0
+        while not pathFound:
+            xMod = math.sin(d)*radius
+            yMod = math.cos(d)*radius
+            self.setVelocitiesToFedPoint(self.rect.x+xMod, self.rect.y+yMod)
+            newRect.x += self.vx
+            newRect.y += self.vy
+            potentialCollisions = self.getPotentialCollisions(nearOthers)
+            if potentialCollisions == 0:
+                pathFound = True
+            else:
+                d *=-1.5
+
+    def update(self,nearOthers):
+
         self.moveByVelocities()
         self.setVelocities()
-
+        self.findValidPath(nearOthers)
 class Guy(PhysicalObject):
     def __init__(self, color, x, y, spriteList):
         super().__init__(color, 20, 20, x, y, spriteList)
