@@ -35,7 +35,6 @@ def create_maze():
         maze = fillOtherCrap(numWeals, numWoes, maze, tiles)
 
     return maze,tiles
-
 def createRandomMapConfig():
     rows = random.randint(4,100)
     cols = random.randint(4,100)

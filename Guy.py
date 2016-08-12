@@ -1,23 +1,81 @@
 import random
-from DC_Talents import *
-debug = True
+import pygame
+from Specializations import *
+import math
+debug = False
+gHits = 0
+class PhysicalObject(pygame.sprite.Sprite):
+    def __init__(self, color, width, height, xPos, yPos, allSpritesList):
+        super().__init__()
+        self.width = width
+        self.height = height
+        self.image = pygame.Surface([self.width, self.height])
+        self.image.fill(color)
+        self.rect = self.image.get_rect()
+        self.rect.x = xPos
+        self.rect.y = yPos
+        self.destinationX = xPos
+        self.destinationY = yPos
+        self.vx = 0
+        self.vy = 0
+        self.maxSpeed = 10
+        allSpritesList.add(self)
+    def setDestination(self,x,y):
+        self.destinationX = x
+        self.destinationY = y
+        self.setVelocities()
+    def setVelocities(self):
+        dx = self.destinationX-self.rect.x
+        dy = self.destinationY-self.rect.y
+        d = math.pow(dx*dx+dy*dy,.5)
+        if d > self.maxSpeed:
+            self.vx = dx/d * self.maxSpeed
+            self.vy = dy/d * self.maxSpeed
+        else:
+            self.rect.x = self.destinationX
+            self.rect.y = self.destinationY
+    def moveByVelocities(self):
+        dx = self.destinationX-self.rect.x
+        dy = self.destinationY-self.rect.y
+        d = math.pow(dx*dx+dy*dy,.5)
+        if d < self.maxSpeed:
+            self.rect.x = self.destinationX
+            self.rect.y = self.destinationY
+        else:
+            self.rect.x += self.vx
+            self.rect.y += self.vy
+    def forcedMove(self,dx,dy):
+        self.rect.x+= dx
+        self.rect.y+= dy
 
-class DrawableObject():
-    # pygame stuff
-    pass
-class Guy(DrawableObject):
-    def __init__(self, x, y, xp):
+    def checkForCollision(self,others):
+        for object in others:
+            if object.rect.colliderect(self.rect): #collision detected
+                # decide if x collided or y collided
+                self.vx*=-1
+    def update(self):
+        self.moveByVelocities()
+        self.setVelocities()
+
+class Guy(PhysicalObject):
+    def __init__(self, color, x, y, spriteList):
+        super().__init__(color, 20, 20, x, y, spriteList)
         # position
+        self.worldObjects = spriteList
+        self.worldObjects.remove(self)
+        self.name = "default name"
         self.xPos = x
         self.yPos = y
         self.weapon = Weapon("Dagger of Default", AttackType.MELEE,(1,0,0),[])
-        self.armor = Armor("rags of the dissolute",AttackType.MELEE,(1,0,0),[])
+        #self.weapon = Weapon("Bad ass Axe of maiming", AttackType.MELEE,(1,1,2),[])
+        self.armor = Armor("rags of the dissolute",AttackType.MELEE,(0,0,0),[])
         # attributes
-        self.strength = 1
-        self.agility = 1
-        self.cunning = 1
-        self.constitution = 1
-        self.xp  = xp
+        self.strength = 3
+        self.agility = 3
+        self.cunning = 3
+        self.constitution = 2
+        self.maxConstitution = self.constitution
+        self.xp  = 0
         # skills
         self.skills={
             Skills.MELEE_WEAPON :Skill("Melee Weapon", 0, True),
@@ -28,39 +86,50 @@ class Guy(DrawableObject):
             Skills.TALKING:Skill("Social", 0, True),
             Skills.TALKING:Skill("Tracking", 0, True)
         }
-        self.specializations = []
+        self.specializations = {}
         self.talents = {}
+    def acquireSpecialization(self,enum,allSpecializations):
+        potentialSpecialization = allSpecializations[enum]
+        for specialization in self.specializations:
+            if specialization == potentialSpecialization:
+                print("invalid")
+        else:
+            self.specializations[enum] = allSpecializations[enum]
+    def acquireTalent(self,enum,allTalents):
+        self.talents[enum] = allTalents[enum]
     def attack(self, opponent):
         if self.weapon.type == AttackType.MELEE:
             attribute = self.strength
             rank = self.skills[Skills.MELEE_WEAPON].rank
-
         if self.weapon.type == AttackType.RANGED:
             attribute = self.agility
+            rank = self.skills[Skills.RANGED_WEAPON].rank
         if self.weapon.type == AttackType.MAGIC:
             attribute = self.cunning
+            rank = self.skills[Skills.MAGIC_WEAPON].rank
         attackDiePool = (attribute, 0, 0)
         damageDiePool = self.weapon.damagePool
         criticalDiePool = (self.cunning, 0, 0)
         s = attackDiePool[0]
         m = attackDiePool[1]
         l = attackDiePool[2]
+        #upgrade 1 die per rank. prioritizes lower die
         for i in range(rank):
             if  s > 0:
                 m += 1
                 s -= 1
-            elif attackDiePool[0] > 0:
+            elif m >0:
                 l += 1
                 m -= 1
             else:
                 s += 1
+
         attackDiePool = (s,m,l)
+
         att = Attack(self, type, opponent)
-        for key in self.talents:
-            talent = talents[key]
-            attackDiePool = self.applyCombatTalentDieEffects(att, attackDiePool, DieType.ATTACK)
-            damageDiePool = self.applyCombatTalentDieEffects(att, damageDiePool, DieType.DAMAGE)
-            criticalDiePool = self.applyCombatTalentDieEffects(att, criticalDiePool, DieType.CRITICAL)
+        attackDiePool = self.applyCombatTalentDieEffects(att, attackDiePool, DieType.ATTACK)
+        damageDiePool = self.applyCombatTalentDieEffects(att, damageDiePool, DieType.DAMAGE)
+        criticalDiePool = self.applyCombatTalentDieEffects(att, criticalDiePool, DieType.CRITICAL)
         opponent.defend(self, att, attackDiePool, damageDiePool, criticalDiePool)
     def levelSkill(self,skillEnum):
         skill = self.skills[skillEnum]
@@ -71,9 +140,12 @@ class Guy(DrawableObject):
         armorDiePool = self.armor.armorPool
         dodgeDiePool = (self.agility, 0, 0)
         counterDiePool = (self.cunning, 0, 0)
+        debugPrint(attacker.name + " attacks " + self.name)
+
 
         for key in self.talents:
             talent = self.talents[key]
+            debugPrint("Talent applied:" +talent.name)
             if talent.type == TalentType.DEFENSIVE:
                 self.applyCombatTalentDieEffects(talent, att, attackDiePool, DieType.ATTACK)
                 self.applyCombatTalentDieEffects(talent, att, damageDiePool, DieType.DAMAGE)
@@ -82,10 +154,17 @@ class Guy(DrawableObject):
                 self.applyCombatTalentDieEffects(talent, att, dodgeDiePool, DieType.DODGE)
                 self.applyCombatTalentDieEffects(talent, att, counterDiePool, DieType.COUNTER)
 
+
         results = self.rollDice(attackDiePool,damageDiePool,criticalDiePool,armorDiePool,dodgeDiePool,counterDiePool)
         #attack, defense, damage, armor, crit, counter
         attacker.handleCriticals(self,results[4])
+        x = results[2]
         self.handleCounters(attacker,results[5])
+        if results[0]>results[1]:
+            self.handleDamage(results[2]-results[3])
+
+
+
     def applyCombatTalentDieEffects(self,attack, diePool, dieType):
         ret = diePool
         for key in self.talents:
@@ -93,9 +172,11 @@ class Guy(DrawableObject):
             if not talent.type == TalentType.CRITICAL and not talent.type == TalentType.COUNTER:
                 if talent.condition(attack):
                     for effect in talent.dieEffects:
-                        if effect == dieType:
+                        if effect.dieType == dieType:
                             ret = effect.applyEffect(diePool)
         return ret
+
+
 
     def handleCriticals(self, defender, critValue):
         for key in self.talents:
@@ -111,8 +192,41 @@ class Guy(DrawableObject):
                     if talent.condition(counterValue):
                         for effect in talent.otherEffects:
                             effect.enact(self,attacker)
+    def handleDamage(self,damage):
+    # REVISIT ME
+        resilience = (int)(self.constitution*.5)
+        for key in self.talents:
+            talent = self.talents[key]
+            for otherEffect in talent.otherEffects:
+                if otherEffect.otherEffectType==TalentType.DAMAGE_SOAK:
+                    x =otherEffect.enact
+                    resilience+=x
+
+        if damage > 0:
+            damageRoll = random.randint(0,damage)
+            debugPrint("Damage Roll = " + str(damageRoll) + ", resilience = " + str(resilience))
+
+            if damageRoll >= resilience:
+                self.constitution-=1
+                if self.constitution<1:
+                    print(self.name + " is dead.")
+                else:
+                    print(self.name + " was wounded.")
+
+
     def rollDice(self, attackDiePool, damageDiePool, critDiePool, armorDiePool, dodgeDiePool, counterDiePool):
+        global globalAttack
         attack = 0
+        debugPrint("DiePools:")
+
+        debugPrint(" Attack :" + str(attackDiePool))
+        debugPrint(" Damage:" + str(damageDiePool))
+        debugPrint(" Critical:" + str(critDiePool))
+
+        debugPrint(" Armor:" + str(armorDiePool))
+        debugPrint(" Dodge:" + str(dodgeDiePool))
+        debugPrint(" Counter:" + str(counterDiePool))
+
         for s in range(attackDiePool[0]):
             roll = random.randint(1, 10)
             if roll > 5: attack += 1
@@ -123,7 +237,7 @@ class Guy(DrawableObject):
 
         for L in range(attackDiePool[2]):
             roll = random.randint(1, 10)
-            if roll > 5: attack += 1
+            if roll > 3: attack += 1
             if roll > 8: attack += 2
 
         defense = 0
@@ -183,16 +297,21 @@ class Guy(DrawableObject):
             roll = random.randint(1, 20)
             if roll > 15: counter += 1
 
-        debugPrint("Attack = " + str(attack))
-        debugPrint("Defense = " + str(defense))
-        debugPrint("Damage = " + str(damage))
-        debugPrint("Armor = " + str(armor))
-        debugPrint("Critical = " + str(crit))
-        debugPrint("Counter = " + str(counter))
+        debugPrint ("results: ")
+        debugPrint(" Attack = " + str(attack))
+        debugPrint(" Defense = " + str(defense))
+        debugPrint(" Damage = " + str(damage))
+        debugPrint(" Armor = " + str(armor))
+        debugPrint(" Critical = " + str(crit))
+        debugPrint(" Counter = " + str(counter))
 
-        return (attack, defense, damage, armor, crit, counter)
-    def move(self):
-        print("crap")
+        return attack, defense, damage, armor, crit, counter
+    def moveTheWorldBasedOnGuyVelocity(self):
+        for o in self.worldObjects:
+            o.forcedMove(-1*self.vx,-1*self.vy)
+    def update(self):
+        self.moveTheWorldBasedOnGuyVelocity()
+
 class Weapon:
     def __init__(self, name, type, damagePool, effects):
         self.name = name
@@ -211,7 +330,7 @@ class Skill:
         self.rank = rank
         self.career = career
 
-    def rankUp(self, ):
+    def rankUp(self):
         self.rank += 1
 
     def pointsForRankup(self):
@@ -233,12 +352,60 @@ def debugPrint(s):
     if debug:
         print (s)
 
+'''
+#sloppy land
 talents = createTalents()
-abe = Guy(1,2,30)
-bob = Guy(1,2,3)
-abe.talents[TalentName.HEAVY_WEAPON_EXPERT]=talents[TalentName.HEAVY_WEAPON_EXPERT]
-abe.talents[TalentName.PUNISHING_DODGE]=talents[TalentName.PUNISHING_DODGE]
-bob.talents[TalentName.PUNISHING_DODGE]=talents[TalentName.PUNISHING_DODGE]
-abe.levelSkill(Skills.MELEE_WEAPON)
-abe.levelSkill(Skills.MELEE_WEAPON)
-abe.attack(bob)
+allSpecializations = createSpecializations()
+
+
+
+def reviveAbeAndBob():
+    global abe,bob
+    abe = Guy(1,2,3)
+    abe.name = "abe"
+    bob = Guy(1,2,3)
+    bob.name = "bob"
+
+
+    #abe.acquireSpecialization(SpecializationName.BARBARIAN,allSpecializations)
+
+    #abe.acquireTalent(TalentName.HEAVY_WEAPON_EXPERT,talents)
+        #by itself with three con brings win to 80%
+    #abe.acquireTalent(TalentName.EXECUTIONER,talents)
+        #by itself wtc bwt 80%
+    #bob.acquireTalent(TalentName.IRON_SKIN,talents)
+        #biswtcbwt 90%
+    abe.acquireTalent(TalentName.PUNISHING_DODGE,talents)
+        #tied strongly to levelling up melee skill
+    abe.xp = 2000
+    #abe.levelSkill(Skills.MELEE_WEAPON)
+
+
+a = 0
+b = 0
+def mockCombat(guyA,guyB):
+    global a,b
+    r = random.randint(0,1)
+    if r==0:
+        first = guyA
+        second = guyB
+    else:
+        first = guyB
+        second = guyA
+    while guyA.constitution>0 and guyB.constitution>0:
+
+        first.attack(second)
+        if second.constitution>0:
+            second.attack(first)
+    if guyA.constitution <1:
+        a+=1
+    else:
+        b+=1
+
+for i in range(1000):
+    reviveAbeAndBob()
+    mockCombat(abe,bob)
+
+print ("Abe Deaths: " + str(a))
+print ("Bob Deaths:" + str(b))
+'''

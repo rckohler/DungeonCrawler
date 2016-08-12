@@ -13,3 +13,5 @@ def c_crit2(critRoll):
     if critRoll > 1:
         ret = True
     return ret
+def none(crap):
+    return True
