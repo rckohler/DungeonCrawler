@@ -56,9 +56,9 @@ class PhysicalObject(pygame.sprite.Sprite):
     def update(self):
         self.moveByVelocities()
         self.setVelocities()
-
+g = pygame.sprite.Group()
 class Guy(PhysicalObject):
-    def __init__(self, color, x, y, spriteList):
+    def __init__(self, color, x, y, spriteList = g):
         super().__init__(color, 20, 20, x, y, spriteList)
         # position
         self.worldObjects = spriteList
@@ -352,7 +352,7 @@ def debugPrint(s):
     if debug:
         print (s)
 
-'''
+
 #sloppy land
 talents = createTalents()
 allSpecializations = createSpecializations()
@@ -408,4 +408,3 @@ for i in range(1000):
 
 print ("Abe Deaths: " + str(a))
 print ("Bob Deaths:" + str(b))
-'''

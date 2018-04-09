@@ -16,7 +16,7 @@ nonGuySpritesList = pygame.sprite.Group()
 g = Guy(BLACK,350,250,nonGuySpritesList)
 allSpritesList.add(g)
 for i in range(10):
-    p = PhysicalObject(BLACK,20,20,random.randint(200,500),100,nonGuySpritesList)
+    p = PhysicalObject(RED,20,20,random.randint(200,500),100,nonGuySpritesList)
     p.maxSpeed = 7
     p.setDestination(g.rect.x,g.rect.y)
     nonGuySpritesList.add(p)
@@ -26,7 +26,7 @@ screen_width = 700
 screen_height = 400
 screen = pygame.display.set_mode([screen_width, screen_height])
 
-#pygame.display.set_caption("Hello, Howdy, Mate, and Hi there world!")
+pygame.display.set_caption("Hello, Howdy, Mate, and Hi there world!")
 
 
 lastUpdate = time.clock()
